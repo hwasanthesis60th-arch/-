@@ -68,27 +68,41 @@ const Card = ({ children, className = '', onClick }: any) => (
   </div>
 );
 
-const Input = ({ label, value, onChange, type = 'number', max, min = 0, placeholder, disabled, step }: any) => (
-  <div className="flex flex-col gap-1">
-    {label && <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{label}</label>}
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      max={max}
-      min={min}
-      step={step}
-      disabled={disabled}
-      placeholder={disabled ? 'X' : placeholder}
-      className={`border border-slate-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full transition-all ${disabled ? 'bg-slate-100 text-slate-300 cursor-not-allowed font-black text-center' : 'bg-white text-slate-700'}`}
-    />
-  </div>
-);
+const Input = ({ label, value, onChange, type = 'number', max, min = 0, placeholder, disabled, step }: any) => {
+  const handleChange = (v: string) => {
+    if (type === 'number') {
+      let num = Number(v);
+      if (isNaN(num)) num = 0;
+      if (max !== undefined && num > max) num = max;
+      if (min !== undefined && num < min) num = min;
+      onChange(num);
+    } else {
+      onChange(v); // 영문/숫자 등 문자열 그대로 허용
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      {label && <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{label}</label>}
+      <input
+        type={type}
+        value={value === '-' ? '' : value}
+        onChange={(e) => handleChange(e.target.value)}
+        max={max}
+        min={min}
+        step={step}
+        disabled={disabled}
+        placeholder={disabled ? 'X' : placeholder}
+        className={`border border-slate-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full transition-all ${disabled ? 'bg-slate-100 text-slate-300 cursor-not-allowed font-black text-center' : 'bg-white text-slate-700'}`}
+      />
+    </div>
+  );
+};
 
 // --- Main App Logic ---
 
 export default function App() {
-  const [view, setView] = useState<'splash' | 'login' | 'menu' | 'academic' | 'non-academic' | 'entrance' | 'semester-detail'>('splash');
+  const [view, setView] = useState<'splash' | 'login' | 'menu' | 'academic' | 'non-academic' | 'entrance' | 'semester-detail' | 'school-detail'>('splash');
   const [user, setUser] = useState<UserProfile | null>(null);
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<HighSchool | null>(null);
@@ -98,7 +112,6 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [loginData, setLoginData] = useState({ id: '', pw: '' });
   
-  // 로그인 상태 복구
   useEffect(() => {
     const timer = setTimeout(() => {
       const savedUser = localStorage.getItem('hwasan_user');
@@ -145,13 +158,11 @@ export default function App() {
       return;
     }
     setIsSearching(true);
-    // 우선 로컬 검색
     const local = MOCK_SCHOOLS.filter(s => s.name.includes(searchTerm) || s.location.includes(searchTerm));
     if (local.length > 0) {
       setSearchResults(local);
       setIsSearching(false);
     } else {
-      // 로컬에 없으면 AI 검색
       const results = await searchHighSchoolsViaAI(searchTerm);
       if (results && results.length > 0) {
         setSearchResults(results);
@@ -165,11 +176,8 @@ export default function App() {
     return calculateTotalScore(user.semesters, user.nonAcademic).toFixed(2);
   }, [user]);
 
-  // --- 입력 차단 로직 (화산중 전형 요강 준수) ---
   const isInputDisabled = (semester: string, subjectName: string, field: string) => {
     const grade = semester[0];
-    const isArtsPe = ['미술', '음악', '체육'].includes(subjectName);
-
     if (grade === '1') {
       if (field === 'midterm') {
         return !['국어', '수학', '영어', '과학', '사회', '기가', '도덕'].includes(subjectName);
@@ -178,15 +186,13 @@ export default function App() {
         return !['국어', '수학', '영어', '과학', '사회', '기가', '도덕', '한문'].includes(subjectName);
       }
     } else {
-      // 2, 3학년 지필고사
+      // 2, 3학년 지필고사 가능 과목
       if (field === 'paperTest') {
         return !['국어', '수학', '영어', '과학', '역사', '사회', '기가'].includes(subjectName);
       }
     }
     return false;
   };
-
-  // --- Sub Views ---
 
   const renderSplash = () => (
     <div className="fixed inset-0 bg-white flex flex-col items-center justify-center p-6 text-center">
@@ -213,7 +219,7 @@ export default function App() {
         </div>
         <div className="text-center space-y-2">
           <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Sign In</h2>
-          <p className="text-sm text-slate-400 font-medium leading-relaxed">회원가입과 로그인이 동시에!<br/>화산중학교 학생 전용 시스템</p>
+          <p className="text-sm text-slate-400 font-medium leading-relaxed">아이디와 비밀번호를 입력해주세요.<br/>영문과 숫자를 모두 사용할 수 있습니다.</p>
         </div>
         <div className="space-y-4">
           <Input 
@@ -221,14 +227,14 @@ export default function App() {
             type="text" 
             placeholder="아이디를 입력하세요" 
             value={loginData.id} 
-            onChange={(v:string) => setLoginData(prev => ({...prev, id: v}))}
+            onChange={(v:any) => setLoginData(prev => ({...prev, id: v}))}
           />
           <Input 
             label="Security Password" 
             type="password" 
             placeholder="비밀번호를 입력하세요" 
             value={loginData.pw}
-            onChange={(v:string) => setLoginData(prev => ({...prev, pw: v}))}
+            onChange={(v:any) => setLoginData(prev => ({...prev, pw: v}))}
           />
           <Button className="w-full py-5 text-xl font-black rounded-2xl mt-4 shadow-xl shadow-blue-100" onClick={handleLogin}>
             <LogIn className="w-6 h-6" />
@@ -315,7 +321,7 @@ export default function App() {
               <h3 className="font-black text-slate-800 text-xl tracking-tight">고등학교 진학</h3>
               <p className="text-xs text-slate-400 font-bold mt-1">목표 학교 정보 탐색 및 입학 성적 환산</p>
             </div>
-            <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center group-hover:bg-sky-600 group-hover:text-white transition-all">
+            <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all">
                <ChevronRight className="w-6 h-6" />
             </div>
           </button>
@@ -337,16 +343,6 @@ export default function App() {
           <div className="absolute top-0 left-0 w-2 h-full bg-blue-600" />
           <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] mb-3">Middle School Cumulative Grade</p>
           <h2 className="text-6xl font-black text-blue-600 tracking-tighter">{totalScore} <span className="text-xl font-black text-slate-200">/ 300</span></h2>
-          <div className="mt-6 flex justify-center gap-6 px-8">
-             <div className="flex-1 bg-slate-50 p-4 rounded-3xl">
-                <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Academic</p>
-                <p className="font-black text-slate-800">240.0</p>
-             </div>
-             <div className="flex-1 bg-slate-50 p-4 rounded-3xl">
-                <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Non-Acad</p>
-                <p className="font-black text-slate-800">60.0</p>
-             </div>
-          </div>
         </div>
 
         <div className="flex gap-4">
@@ -396,6 +392,7 @@ export default function App() {
     const isGrade1 = selectedSemester.startsWith('1');
     const isGrade2 = selectedSemester.startsWith('2');
     const isGrade3 = selectedSemester.startsWith('3');
+    const is1stSem = selectedSemester.includes('1학기');
     const subjects = isGrade1 ? GRADE_1_SUBJECTS : isGrade2 ? GRADE_2_SUBJECTS : GRADE_3_SUBJECTS;
     
     const data: SemesterData = user.semesters[selectedSemester] || { 
@@ -411,7 +408,15 @@ export default function App() {
         subjects: data.subjects.map(s => ({ 
           ...s, 
           achievement: val ? 'P' : 'A' as Achievement, 
-          rawScore: val ? '-' : 0 
+          rawScore: val ? '-' : 0,
+          midterm: 0,
+          final: 0,
+          performance: 0,
+          perfA: 0,
+          perfB: 0,
+          perfC: 0,
+          perfD: 0,
+          paperTest: 0,
         }))
       };
       handleUpdateUser(updated);
@@ -425,48 +430,89 @@ export default function App() {
       const isArtsPe = ['미술', '음악', '체육'].includes(currentSub.name);
       
       if (isGrade1) {
+        // 1학년 정밀 공식
         const mid = currentSub.midterm || 0;
         const fin = currentSub.final || 0;
         const perf = currentSub.performance || 0;
-        if (['국어', '수학', '영어', '과학', '사회', '기가', '도덕'].includes(currentSub.name)) {
-          calculatedRaw = (mid * 0.3) + (fin * 0.3) + perf;
+        
+        if (['국어', '수학', '영어', '과학', '사회', '기가'].includes(currentSub.name)) {
+          calculatedRaw = (mid * 30 / 100) + (fin * 30 / 100) + perf;
         } else if (currentSub.name === '도덕') {
-          calculatedRaw = (mid * 0.2) + (fin * 0.2) + perf;
+          calculatedRaw = (mid * 20 / 100) + (fin * 20 / 100) + perf;
         } else if (currentSub.name === '한문') {
-          calculatedRaw = (fin * 0.3) + perf;
+          calculatedRaw = (fin * 30 / 100) + perf;
         } else {
-          calculatedRaw = perf;
+          calculatedRaw = perf; // 음미체 등
         }
       } else {
+        // 2/3학년 정밀 공식 (8점 만점 수행평가 환산 포함)
         const pA = calculatePerfScale(currentSub.perfA || 0);
         const pB = calculatePerfScale(currentSub.perfB || 0);
         const pC = calculatePerfScale(currentSub.perfC || 0);
         const pD = calculatePerfScale(currentSub.perfD || 0);
         const jt = currentSub.paperTest || 0;
-        if (['국어', '수학', '역사'].includes(currentSub.name) || (currentSub.name === '과학' && isGrade2 && selectedSemester.includes('1학기'))) {
-          calculatedRaw = (pA * 0.2) + (pB * 0.2) + (pC * 0.2) + (pD * 0.2) + (jt * 0.2);
-        } else if (currentSub.name === '과학') {
-           calculatedRaw = (pA * 0.18) + (pB * 0.17) + (pC * 0.18) + (pD * 0.17) + (jt * 0.3);
-        } else if (currentSub.name === '영어') {
-          const w = selectedSemester.includes('1학기') ? {A:0.1, B:0.1, C:0.25, D:0.25, JT:0.3} : {A:0.1, B:0.2, C:0.2, D:0.2, JT:0.3};
-          calculatedRaw = (pA * w.A) + (pB * w.B) + (pC * w.C) + (pD * w.D) + (jt * w.JT);
-        } else if (currentSub.name === '기가' || (isGrade3 && currentSub.name === '한문')) {
-          calculatedRaw = (pA * 0.2) + (pB * 0.1) + (pC * 0.1) + (pD * 0.3) + (jt * 0.3);
-        } else if (currentSub.name === '사회' && isGrade3) {
-          calculatedRaw = (pA * 0.15) + (pB * 0.15) + (pC * 0.2) + (pD * 0.2) + (jt * 0.3);
-        } else if (['음악'].includes(currentSub.name)) {
-          calculatedRaw = (pA * 0.2) + (pB * 0.3) + (pC * 0.2) + (pD * 0.3);
-        } else {
-          calculatedRaw = (pA * 0.25) + (pB * 0.25) + (pC * 0.25) + (pD * 0.25);
+
+        if (isGrade2 && is1stSem) {
+          if (['국어', '수학', '역사', '과학'].includes(currentSub.name)) {
+            calculatedRaw = (pA * 20 / 100) + (pB * 20 / 100) + (pC * 20 / 100) + (pD * 20 / 100) + (jt * 20 / 100);
+          } else if (currentSub.name === '영어') {
+            calculatedRaw = (pA * 10 / 100) + (pB * 10 / 100) + (pC * 25 / 100) + (pD * 25 / 100) + (jt * 30 / 100);
+          } else if (currentSub.name === '기가') {
+            calculatedRaw = (pA * 20 / 100) + (pB * 10 / 100) + (pC * 10 / 100) + (pD * 30 / 100) + (jt * 30 / 100);
+          } else if (['도덕', '미술', '체육', '정보'].includes(currentSub.name)) {
+            calculatedRaw = (pA * 25 / 100) + (pB * 25 / 100) + (pC * 25 / 100) + (pD * 25 / 100);
+          } else if (currentSub.name === '음악') {
+            calculatedRaw = (pA * 20 / 100) + (pB * 30 / 100) + (pC * 20 / 100) + (pD * 30 / 100);
+          }
+        } else if (isGrade2 && !is1stSem) {
+          // 2학년 2학기
+          if (['국어', '수학', '역사'].includes(currentSub.name)) {
+            calculatedRaw = (pA * 20 / 100) + (pB * 20 / 100) + (pC * 20 / 100) + (pD * 20 / 100) + (jt * 20 / 100);
+          } else if (currentSub.name === '과학') {
+            calculatedRaw = (pA * 18 / 100) + (pB * 17 / 100) + (pC * 18 / 100) + (pD * 17 / 100) + (jt * 30 / 100);
+          } else if (currentSub.name === '영어') {
+            calculatedRaw = (pA * 10 / 100) + (pB * 20 / 100) + (pC * 20 / 100) + (pD * 20 / 100) + (jt * 30 / 100);
+          } else if (currentSub.name === '기가') {
+            calculatedRaw = (pA * 20 / 100) + (pB * 10 / 100) + (pC * 10 / 100) + (pD * 30 / 100) + (jt * 30 / 100);
+          } else if (['도덕', '미술', '체육', '정보'].includes(currentSub.name)) {
+            calculatedRaw = (pA * 25 / 100) + (pB * 25 / 100) + (pC * 25 / 100) + (pD * 25 / 100);
+          } else if (currentSub.name === '음악') {
+            calculatedRaw = (pA * 20 / 100) + (pB * 30 / 100) + (pC * 20 / 100) + (pD * 30 / 100);
+          }
+        } else if (isGrade3) {
+          // 3학년 1, 2학기 공통
+          if (['국어', '수학', '역사'].includes(currentSub.name)) {
+            calculatedRaw = (pA * 20 / 100) + (pB * 20 / 100) + (pC * 20 / 100) + (pD * 20 / 100) + (jt * 20 / 100);
+          } else if (currentSub.name === '과학') {
+            calculatedRaw = (pA * 18 / 100) + (pB * 17 / 100) + (pC * 18 / 100) + (pD * 17 / 100) + (jt * 30 / 100);
+          } else if (currentSub.name === '사회') {
+            calculatedRaw = (pA * 15 / 100) + (pB * 15 / 100) + (pC * 20 / 100) + (pD * 20 / 100) + (jt * 30 / 100);
+          } else if (currentSub.name === '영어') {
+            calculatedRaw = (pA * 10 / 100) + (pB * 20 / 100) + (pC * 20 / 100) + (pD * 20 / 100) + (jt * 30 / 100);
+          } else if (currentSub.name === '기가' || currentSub.name === '한문') {
+            calculatedRaw = (pA * 20 / 100) + (pB * 10 / 100) + (pC * 10 / 100) + (pD * 30 / 100) + (jt * 30 / 100);
+          } else if (['도덕', '미술', '체육', '정보'].includes(currentSub.name)) {
+            calculatedRaw = (pA * 25 / 100) + (pB * 25 / 100) + (pC * 25 / 100) + (pD * 25 / 100);
+          } else if (currentSub.name === '음악') {
+            calculatedRaw = (pA * 20 / 100) + (pB * 30 / 100) + (pC * 20 / 100) + (pD * 30 / 100);
+          }
         }
       }
 
-      currentSub.rawScore = Number(calculatedRaw.toFixed(1));
-      currentSub.achievement = getAchievement(currentSub.rawScore, isArtsPe);
+      const finalRaw = data.isFreeSemester ? '-' : Math.min(100, Number(calculatedRaw.toFixed(1)));
+      currentSub.rawScore = finalRaw;
+      currentSub.achievement = data.isFreeSemester ? 'P' : getAchievement(Number(finalRaw), isArtsPe);
       
       if (!updated.semesters[selectedSemester]) updated.semesters[selectedSemester] = data;
       updated.semesters[selectedSemester].subjects[index] = currentSub;
       handleUpdateUser(updated);
+    };
+
+    const getPerfMax = (subName: string) => {
+      if (subName === '한문') return 70;
+      if (subName === '도덕') return 60;
+      if (['국어', '수학', '영어', '과학', '사회', '기가'].includes(subName)) return 40;
+      return 100;
     };
 
     return (
@@ -478,59 +524,47 @@ export default function App() {
             </button>
             <h1 className="text-xl font-black text-slate-800 tracking-tight">{selectedSemester}</h1>
           </div>
-          <div className={`px-4 py-2 rounded-2xl font-black text-xs transition-all shadow-sm ${data.isFreeSemester ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-            {data.isFreeSemester ? '자유학기제' : '성적입력'}
-          </div>
-        </header>
-        <main className="p-4 space-y-8 max-w-4xl mx-auto">
-          <div className="flex items-center justify-between p-6 bg-white rounded-[32px] border-2 border-slate-100 shadow-xl">
-            <div className="flex items-center gap-4">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-lg ${data.isFreeSemester ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                <Globe className="w-8 h-8" />
-              </div>
-              <div>
-                <p className="text-lg font-black text-slate-800">자유학기제 설정</p>
-                <p className="text-xs text-slate-400 font-bold tracking-widest uppercase">Pass/Fail System</p>
-              </div>
-            </div>
-            <input 
+          <div className="flex items-center gap-3">
+             <span className="text-xs font-black text-slate-400">자유학기제</span>
+             <input 
               type="checkbox" 
               checked={data.isFreeSemester} 
               onChange={(e) => handleToggleFree(e.target.checked)}
-              className="w-10 h-10 rounded-xl accent-blue-600 cursor-pointer shadow-sm transition-all"
+              className="w-10 h-6 appearance-none bg-slate-200 rounded-full relative cursor-pointer checked:bg-blue-600 transition-all before:content-[''] before:absolute before:w-4 before:h-4 before:bg-white before:rounded-full before:top-1 before:left-1 checked:before:left-5 before:transition-all"
             />
           </div>
-
+        </header>
+        <main className="p-4 space-y-6 max-w-5xl mx-auto">
           <div className="overflow-x-auto rounded-[32px] border border-slate-100 shadow-2xl bg-white">
             <table className="w-full text-xs text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-400 border-b">
-                  <th className="p-5 font-black uppercase tracking-widest">과목</th>
-                  <th className="p-5 font-black text-center uppercase tracking-widest">성취도</th>
+                  <th className="p-5 font-black">과목</th>
+                  <th className="p-5 font-black text-center">성취도</th>
                   {isGrade1 ? (
                     <>
-                      <th className="p-2 text-center font-black">중간</th>
-                      <th className="p-2 text-center font-black">기말</th>
+                      <th className="p-2 text-center font-black">중간(100)</th>
+                      <th className="p-2 text-center font-black">기말(100)</th>
                       <th className="p-2 text-center font-black">수행</th>
                     </>
                   ) : (
                     <>
-                      <th className="p-2 text-center font-black">수행A</th>
-                      <th className="p-2 text-center font-black">수행B</th>
-                      <th className="p-2 text-center font-black">수행C</th>
-                      <th className="p-2 text-center font-black">수행D</th>
-                      <th className="p-2 text-center font-black">지필</th>
+                      <th className="p-2 text-center font-black">수행A(8)</th>
+                      <th className="p-2 text-center font-black">수행B(8)</th>
+                      <th className="p-2 text-center font-black">수행C(8)</th>
+                      <th className="p-2 text-center font-black">수행D(8)</th>
+                      <th className="p-2 text-center font-black">지필(100)</th>
                     </>
                   )}
-                  <th className="p-5 text-right font-black uppercase tracking-widest">원점수</th>
+                  <th className="p-5 text-right font-black">원점수</th>
                 </tr>
               </thead>
               <tbody>
                 {data.subjects.map((sub, idx) => (
-                  <tr key={idx} className="border-b last:border-none hover:bg-slate-50/50 transition-colors">
-                    <td className="p-5 font-black text-slate-800 bg-slate-50/30 text-sm">{sub.name}</td>
+                  <tr key={idx} className="border-b last:border-none">
+                    <td className="p-5 font-black text-slate-800">{sub.name}</td>
                     <td className="p-2 text-center">
-                      <div className={`w-10 h-10 mx-auto rounded-xl flex items-center justify-center font-black text-xs shadow-md transition-all ${
+                      <div className={`w-10 h-10 mx-auto rounded-xl flex items-center justify-center font-black text-xs shadow-md ${
                         sub.achievement === 'A' ? 'bg-green-500 text-white' :
                         sub.achievement === 'P' ? 'bg-blue-600 text-white' : 
                         sub.achievement === 'E' ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'
@@ -542,42 +576,47 @@ export default function App() {
                       <>
                         <td className="p-1 px-1">
                            <Input 
-                             value={sub.midterm || ''} 
+                             value={data.isFreeSemester ? '-' : sub.midterm} 
                              onChange={(v: any) => handleUpdateSubject(idx, 'midterm', v)} 
+                             max={100}
                              disabled={data.isFreeSemester || isInputDisabled(selectedSemester, sub.name, 'midterm')}
                            />
                         </td>
                         <td className="p-1 px-1">
                            <Input 
-                             value={sub.final || ''} 
+                             value={data.isFreeSemester ? '-' : sub.final} 
                              onChange={(v: any) => handleUpdateSubject(idx, 'final', v)} 
+                             max={100}
                              disabled={data.isFreeSemester || isInputDisabled(selectedSemester, sub.name, 'final')}
                            />
                         </td>
                         <td className="p-1 px-1">
                            <Input 
-                             value={sub.performance || ''} 
+                             label={`MAX:${getPerfMax(sub.name)}`}
+                             value={data.isFreeSemester ? '-' : sub.performance} 
                              onChange={(v: any) => handleUpdateSubject(idx, 'performance', v)} 
+                             max={getPerfMax(sub.name)}
                              disabled={data.isFreeSemester}
                            />
                         </td>
                       </>
                     ) : (
                       <>
-                        <td className="p-1 px-1"><Input value={sub.perfA || ''} onChange={(v: any) => handleUpdateSubject(idx, 'perfA', v)} max={8} disabled={data.isFreeSemester}/></td>
-                        <td className="p-1 px-1"><Input value={sub.perfB || ''} onChange={(v: any) => handleUpdateSubject(idx, 'perfB', v)} max={8} disabled={data.isFreeSemester}/></td>
-                        <td className="p-1 px-1"><Input value={sub.perfC || ''} onChange={(v: any) => handleUpdateSubject(idx, 'perfC', v)} max={8} disabled={data.isFreeSemester}/></td>
-                        <td className="p-1 px-1"><Input value={sub.perfD || ''} onChange={(v: any) => handleUpdateSubject(idx, 'perfD', v)} max={8} disabled={data.isFreeSemester}/></td>
+                        <td className="p-1 px-1"><Input value={data.isFreeSemester ? '-' : sub.perfA} onChange={(v: any) => handleUpdateSubject(idx, 'perfA', v)} max={8} disabled={data.isFreeSemester}/></td>
+                        <td className="p-1 px-1"><Input value={data.isFreeSemester ? '-' : sub.perfB} onChange={(v: any) => handleUpdateSubject(idx, 'perfB', v)} max={8} disabled={data.isFreeSemester}/></td>
+                        <td className="p-1 px-1"><Input value={data.isFreeSemester ? '-' : sub.perfC} onChange={(v: any) => handleUpdateSubject(idx, 'perfC', v)} max={8} disabled={data.isFreeSemester}/></td>
+                        <td className="p-1 px-1"><Input value={data.isFreeSemester ? '-' : sub.perfD} onChange={(v: any) => handleUpdateSubject(idx, 'perfD', v)} max={8} disabled={data.isFreeSemester}/></td>
                         <td className="p-1 px-1">
                            <Input 
-                             value={sub.paperTest || ''} 
+                             value={data.isFreeSemester ? '-' : sub.paperTest} 
                              onChange={(v: any) => handleUpdateSubject(idx, 'paperTest', v)} 
+                             max={100}
                              disabled={data.isFreeSemester || isInputDisabled(selectedSemester, sub.name, 'paperTest')}
                            />
                         </td>
                       </>
                     )}
-                    <td className="p-5 font-black text-right text-blue-600 text-base tabular-nums bg-blue-50/20">{sub.rawScore}</td>
+                    <td className="p-5 font-black text-right text-blue-600 bg-blue-50/20">{sub.rawScore}</td>
                   </tr>
                 ))}
               </tbody>
@@ -777,7 +816,7 @@ export default function App() {
               ) : (
                 <div className="grid grid-cols-1 gap-6">
                   {bookmarkedSchools.map(school => (
-                    <Card key={school.id} className="cursor-pointer hover:shadow-2xl transition-all duration-300 group shadow-lg" onClick={() => setSelectedSchool(school)}>
+                    <Card key={school.id} className="cursor-pointer hover:shadow-2xl transition-all duration-300 group shadow-lg" onClick={() => { setSelectedSchool(school); setView('school-detail'); }}>
                       <div className="relative h-44 overflow-hidden">
                          <img src={school.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                          <div className="absolute top-4 left-4">
@@ -815,22 +854,16 @@ export default function App() {
               </div>
 
               <div className="flex items-center justify-between px-2">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{searchTerm ? `'${searchTerm}' 결과` : '전국 고등학교 목록 (세션 저장됨)'}</h3>
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">탐색 결과</h3>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {searchResults.map(school => (
-                  <Card key={school.id} className="cursor-pointer hover:shadow-2xl transition-all duration-500 border-none shadow-lg group active:scale-95 bg-white" onClick={() => setSelectedSchool(school)}>
+                  <Card key={school.id} className="cursor-pointer hover:shadow-2xl transition-all duration-500 border-none shadow-lg group active:scale-95 bg-white" onClick={() => { setSelectedSchool(school); setView('school-detail'); }}>
                     <div className="relative h-32 overflow-hidden">
                       <img src={school.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-4">
                          <h3 className="font-black text-sm text-white line-clamp-1">{school.name}</h3>
-                      </div>
-                    </div>
-                    <div className="p-3 bg-white">
-                      <div className="flex justify-between items-center">
-                        <p className="text-[10px] text-slate-400 font-black">{school.location}</p>
-                        <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg text-[9px] font-black">{school.type}</span>
                       </div>
                     </div>
                   </Card>
@@ -841,12 +874,14 @@ export default function App() {
 
           {activeEntranceTab === 'ai' && <AIAdvisorSection currentScore={Number(totalScore)} />}
         </main>
-
-        {/* School Detail Overlay - 흰 화면 방지를 위해 같은 뷰 내부 오버레이로 구현 */}
-        {selectedSchool && <SchoolDetailOverlay school={selectedSchool} onClose={() => setSelectedSchool(null)} currentTotalScore={Number(totalScore)} user={user} onUpdateUser={handleUpdateUser} />}
       </div>
     );
   };
+
+  const renderSchoolDetail = () => {
+    if (!selectedSchool) return null;
+    return <SchoolDetailView school={selectedSchool} onBack={() => setView('entrance')} currentTotalScore={Number(totalScore)} user={user} onUpdateUser={handleUpdateUser} />;
+  }
 
   switch (view) {
     case 'splash': return renderSplash();
@@ -856,22 +891,21 @@ export default function App() {
     case 'semester-detail': return renderSemesterDetail();
     case 'non-academic': return renderNonAcademic();
     case 'entrance': return renderEntrance();
+    case 'school-detail': return renderSchoolDetail();
     default: return renderSplash();
   }
 }
 
-// --- Detail Overlay Component ---
-function SchoolDetailOverlay({ school, onClose, currentTotalScore, user, onUpdateUser }: { school: HighSchool, onClose: () => void, currentTotalScore: number, user: UserProfile | null, onUpdateUser: (u: UserProfile) => void }) {
+function SchoolDetailView({ school, onBack, currentTotalScore, user, onUpdateUser }: any) {
   const [calcResult, setCalcResult] = useState<any>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const isBookmarked = user?.bookmarks.includes(school.id) || false;
 
-  const toggleBookmark = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleBookmark = () => {
     if (!user) return;
     const updated = { ...user };
     if (isBookmarked) {
-      updated.bookmarks = updated.bookmarks.filter(id => id !== school.id);
+      updated.bookmarks = updated.bookmarks.filter((id:string) => id !== school.id);
     } else {
       updated.bookmarks = [...updated.bookmarks, school.id];
     }
@@ -886,75 +920,62 @@ function SchoolDetailOverlay({ school, onClose, currentTotalScore, user, onUpdat
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white animate-in slide-in-from-right duration-300">
-      <header className="px-6 py-5 border-b flex justify-between items-center sticky top-0 z-10 bg-white shadow-sm">
-        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-2xl border border-slate-100 transition-all shadow-sm">
+    <div className="min-h-screen bg-white flex flex-col">
+      <header className="px-6 py-5 border-b flex justify-between items-center sticky top-0 z-10 bg-white">
+        <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-2xl border border-slate-100 transition-all">
           <ArrowLeft className="w-5 h-5 text-slate-700" />
         </button>
-        <div className="flex items-center gap-3">
-           <button onClick={toggleBookmark} className={`p-3 rounded-2xl transition-all shadow-md ${isBookmarked ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-300'}`}>
-              <Bookmark className={`w-6 h-6 ${isBookmarked ? 'fill-white' : ''}`} />
-           </button>
-        </div>
+        <button onClick={toggleBookmark} className={`p-3 rounded-2xl transition-all shadow-md ${isBookmarked ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-300'}`}>
+          <Bookmark className={`w-6 h-6 ${isBookmarked ? 'fill-white' : ''}`} />
+        </button>
       </header>
-      <main className="flex-1 overflow-y-auto max-w-2xl mx-auto w-full pb-20">
-        <div className="relative h-72">
+      <main className="flex-1 overflow-y-auto max-w-2xl mx-auto w-full">
+        <div className="relative h-64">
           <img src={school.imageUrl} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent flex items-end p-8">
-             <div className="text-white space-y-2">
-               <span className="bg-blue-600 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/20">{school.type}</span>
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent flex items-end p-8">
+             <div className="text-white space-y-1">
+               <span className="bg-blue-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest">{school.type}</span>
                <h1 className="text-3xl font-black tracking-tighter">{school.name}</h1>
-               <p className="flex items-center gap-1 text-sm font-bold opacity-80"><MapPin className="w-4 h-4 text-sky-400"/> {school.location}</p>
+               <p className="flex items-center gap-1 text-sm font-bold opacity-80"><MapPin className="w-4 h-4"/> {school.location}</p>
              </div>
           </div>
         </div>
-        
         <div className="p-8 space-y-10">
-          <section className="space-y-6">
-            <h3 className="font-black text-slate-800 text-xl tracking-tight border-b-4 border-blue-600 inline-block pb-1">학교 프로필</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 bg-slate-50 p-6 rounded-3xl">
-              <div className="space-y-2">
-                <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">지원 자격</h4>
-                <p className="text-sm text-slate-700 font-black">{school.eligibility}</p>
+          <section className="space-y-4">
+            <h3 className="font-black text-slate-800 text-xl tracking-tight flex items-center gap-2">
+              <div className="w-1 h-6 bg-blue-600 rounded-full" />
+              학교 상세 정보
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-50 rounded-2xl">
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">지원 자격</p>
+                <p className="text-sm font-bold text-slate-700">{school.eligibility}</p>
               </div>
-              <div className="space-y-2">
-                <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">진학 실적</h4>
-                <p className="text-sm text-slate-700 font-black">{school.progressionRate}</p>
+              <div className="p-4 bg-slate-50 rounded-2xl">
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">주요 진학</p>
+                <p className="text-sm font-bold text-slate-700">{school.progressionRate}</p>
               </div>
             </div>
-            <div className="pt-4 px-2">
-              <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">학교 소개</h4>
-              <p className="text-sm text-slate-600 leading-relaxed font-bold italic">"{school.description}"</p>
-            </div>
+            <p className="text-sm text-slate-600 leading-relaxed font-medium bg-blue-50/50 p-6 rounded-3xl border border-blue-100 italic">"{school.description}"</p>
           </section>
 
           <section className="space-y-6">
-            <h3 className="font-black text-slate-800 text-xl tracking-tight border-b-4 border-blue-600 inline-block pb-1">입학 성적 시뮬레이션</h3>
-            <Button 
-              className="w-full py-6 rounded-[28px] flex items-center justify-center gap-4 shadow-2xl shadow-blue-100 text-2xl font-black" 
-              onClick={runConversion}
-              loading={isCalculating}
-            >
-              <Calculator className="w-8 h-8" />
-              학교별 전형 환산
+            <h3 className="font-black text-slate-800 text-xl tracking-tight flex items-center gap-2">
+               <div className="w-1 h-6 bg-blue-600 rounded-full" />
+               입학 성적 환산 (AI)
+            </h3>
+            <Button className="w-full py-5 rounded-2xl shadow-xl shadow-blue-100 text-lg" onClick={runConversion} loading={isCalculating}>
+               {school.name} 전형 환산하기
             </Button>
-
             {calcResult && (
-              <div className="animate-in zoom-in-95 duration-500">
-                <Card className="p-8 bg-gradient-to-br from-slate-900 to-blue-900 text-white shadow-2xl rounded-[40px] border-none overflow-hidden relative">
-                  <div className="absolute top-0 right-0 p-6 opacity-5">
-                     <School className="w-48 h-48" />
-                  </div>
-                  <p className="text-[10px] font-black opacity-60 mb-2 uppercase tracking-widest">Conversion Result</p>
-                  <div className="flex items-baseline gap-3 mb-6">
-                    <h3 className="text-7xl font-black tracking-tighter tabular-nums">{calcResult.convertedScore}</h3>
-                    <span className="text-3xl font-bold opacity-30">/ {calcResult.maxScore}</span>
-                  </div>
-                  <div className="p-6 bg-white/10 backdrop-blur-md rounded-[28px] border border-white/20">
-                    <p className="text-sm leading-relaxed font-bold text-sky-50 whitespace-pre-wrap">{calcResult.explanation}</p>
-                  </div>
-                </Card>
-              </div>
+              <Card className="p-8 bg-slate-900 text-white shadow-2xl rounded-[32px] border-none">
+                <p className="text-[10px] font-black opacity-50 mb-2 uppercase">Converts to</p>
+                <div className="flex items-baseline gap-2 mb-4">
+                  <h3 className="text-6xl font-black tracking-tighter">{calcResult.convertedScore}</h3>
+                  <span className="text-2xl font-bold opacity-30">/ {calcResult.maxScore}</span>
+                </div>
+                <p className="text-sm font-bold text-sky-100/80 leading-relaxed whitespace-pre-wrap">{calcResult.explanation}</p>
+              </Card>
             )}
           </section>
         </div>
@@ -963,7 +984,6 @@ function SchoolDetailOverlay({ school, onClose, currentTotalScore, user, onUpdat
   );
 }
 
-// --- Advisor Component ---
 function AIAdvisorSection({ currentScore }: { currentScore: number }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -979,55 +999,23 @@ function AIAdvisorSection({ currentScore }: { currentScore: number }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-blue-600 p-10 rounded-[40px] text-white shadow-2xl shadow-blue-200 relative overflow-hidden border-none animate-in fade-in zoom-in-95">
-        <div className="absolute top-0 right-0 p-6 opacity-10 font-black text-9xl">AI</div>
-        <div className="flex items-center gap-4 mb-4">
-           <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30 backdrop-blur-md">
-             <MessageSquare className="w-7 h-7 text-white" />
-           </div>
-           <h2 className="text-2xl font-black tracking-tighter">AI 진학 Advisor</h2>
-        </div>
-        <p className="text-sm font-bold opacity-90 leading-relaxed">
-          화산중학교 내신 <span className="text-white text-2xl font-black underline underline-offset-4 mx-1">{currentScore}점</span> 학생의 진학 고민을 해결해드립니다.
-        </p>
+      <div className="bg-blue-600 p-8 rounded-[32px] text-white shadow-xl">
+        <h2 className="text-xl font-black mb-2">AI 진학 전문가 상담</h2>
+        <p className="text-sm font-bold opacity-80">현재 성적({currentScore}점)을 바탕으로 맞춤형 진로 상담을 제공합니다.</p>
       </div>
-
-      <div className="space-y-4">
-        <div className="flex gap-2">
-          <input 
-            type="text" 
-            placeholder="예: 상산고 합격 가능성을 알려줘" 
-            className="flex-1 px-6 py-5 rounded-[28px] border-2 border-slate-50 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 shadow-xl font-black text-sm transition-all"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
-          />
-          <Button onClick={handleAsk} loading={loading} className="px-8 rounded-[28px] shadow-2xl shadow-blue-100 font-black">
-            질문
-          </Button>
-        </div>
+      <div className="flex gap-2">
+        <input 
+          type="text" 
+          placeholder="예: 상산고 지원해도 될까요?" 
+          className="flex-1 px-4 py-4 rounded-2xl border-2 border-slate-100 focus:outline-none focus:border-blue-600 font-bold"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <Button onClick={handleAsk} loading={loading} className="px-6 rounded-2xl">상담</Button>
       </div>
-
       {response && (
-        <Card className="p-10 bg-white border-none animate-in slide-in-from-bottom-8 duration-700 shadow-2xl rounded-[40px]">
-          <div className="flex flex-col gap-8">
-            <div className="flex items-center gap-4 border-b border-slate-50 pb-6">
-               <div className="w-14 h-14 bg-blue-600 rounded-3xl flex items-center justify-center shadow-xl border-4 border-white overflow-hidden">
-                 <img src="https://picsum.photos/seed/hwasan_ai/200" className="w-full h-full object-cover" />
-               </div>
-               <div>
-                  <h4 className="font-black text-slate-800 text-lg tracking-tight">화산중 입시 상담관</h4>
-                  <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest mt-1">Hwasan Admission Advisor</p>
-               </div>
-            </div>
-            <div className="space-y-8">
-              <p className="text-base text-slate-700 leading-relaxed font-bold whitespace-pre-wrap">{response}</p>
-              <div className="pt-6 border-t border-slate-50 flex justify-between items-center">
-                <p className="text-[10px] text-slate-300 font-black italic tracking-widest">“PASSION DEFINES THE FUTURE.”</p>
-                <Button variant="ghost" className="text-[10px] font-black px-4 py-2" onClick={() => setResponse(null)}>상담 완료</Button>
-              </div>
-            </div>
-          </div>
+        <Card className="p-8 bg-white border-none shadow-xl rounded-[32px]">
+          <p className="text-sm font-bold text-slate-700 leading-relaxed whitespace-pre-wrap">{response}</p>
         </Card>
       )}
     </div>

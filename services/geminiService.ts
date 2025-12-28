@@ -3,15 +3,16 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// AI를 통한 전국 고등학교 검색
+// AI를 통한 전국 고등학교 검색 (Google Search Grounding 활용)
 export const searchHighSchoolsViaAI = async (query: string) => {
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `대한민국의 교육청 소속 고등학교 중에서 "${query}"와(과) 관련된 고등학교 정보를 검색하여 JSON 배열 형태로 반환해줘. 
-      결과는 [{id, name, type, location, eligibility, description, progressionRate, imageUrl}] 형식을 지켜야 해. 
-      imageUrl은 해당 학교의 전경이나 로고가 연상되는 실제 이미지 검색 키워드를 기반으로 "https://source.unsplash.com/featured/?highschool,building,{name}" 또는 "https://picsum.photos/seed/{name}/400/300" 중 가장 적합한 것을 사용해줘.`,
+      contents: `대한민국의 교육청 소속 고등학교 중에서 "${query}"와(과) 관련된 실제 고등학교 정보를 검색해서 최신 데이터를 기반으로 반환해줘. 
+      결과는 반드시 JSON 배열 형태여야 하며, 각 학교의 실제 특징(모집 단위, 대학 진학 성과 등)을 상세히 포함해줘.
+      이미지 URL(imageUrl)은 해당 학교의 실제 모습이 잘 반영될 수 있도록 "https://loremflickr.com/800/600/highschool,korea,building,{학교이름}" 형식을 사용해줘.`,
       config: {
+        tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -32,6 +33,11 @@ export const searchHighSchoolsViaAI = async (query: string) => {
         }
       }
     });
+
+    // 검색 결과에서 출처 URL 추출 (필요 시 UI에 표시 가능)
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+    console.log("Grounding Sources:", sources);
+
     return JSON.parse(response.text);
   } catch (error) {
     console.error("School Search error:", error);
@@ -39,15 +45,15 @@ export const searchHighSchoolsViaAI = async (query: string) => {
   }
 };
 
-// 초기 로딩 시 보여줄 전국 대표 고등학교 리스트 (각 지역별 2~3개씩 총 30개 이상)
+// 초기 로딩 시 보여줄 전국 대표 고등학교 리스트 (Google Search 활용)
 export const getInitialRepresentativeSchools = async () => {
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `대한민국 전국 17개 시도 교육청 소속의 대표적인 고등학교(과학고, 외고, 자사고, 명문 일반고 등) 30개를 선정해서 정보를 제공해줘. 
-      서울, 경기, 인천, 강원, 충북, 충남, 대전, 세종, 전북, 전남, 광주, 경북, 경남, 대구, 울산, 부산, 제주 지역이 골고루 포함되어야 해.
-      결과는 [{id, name, type, location, eligibility, description, progressionRate, imageUrl}] 형식의 JSON 배열이어야 해.`,
+      contents: `대한민국 전국 시도별 대표 고등학교(상산고, 민사고, 경기과학고 등) 20곳의 최신 정보를 검색해서 JSON 배열로 제공해줘. 
+      실제 학교 건물의 이미지가 나올 수 있도록 imageUrl은 "https://loremflickr.com/800/600/highschool,korea,{학교이름}" 형식을 사용해줘.`,
       config: {
+        tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -80,9 +86,10 @@ export const calculateSchoolSpecificGrade = async (schoolName: string, hwasanTot
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `${schoolName}의 최신 고등학교 입학 전형 요강을 바탕으로, 화산중학교 내신 점수 ${hwasanTotalScore}/300점을 해당 학교의 산출 방식으로 환산해줘. 
-      반드시 다음 JSON 형식으로만 답해줘: { "convertedScore": "숫자", "maxScore": "숫자", "explanation": "계산 방식 설명" }`,
+      contents: `${schoolName}의 최신 2024-2025학년도 입학 전형 요강을 구글 검색으로 확인해서, 화산중학교 내신 점수 ${hwasanTotalScore}/300점을 해당 학교의 산출 방식(교과 가중치, 비교과 반영비율 등)으로 정확히 환산해줘. 
+      반드시 다음 JSON 형식으로만 답해줘: { "convertedScore": "숫자", "maxScore": "숫자", "explanation": "검색된 실제 전형 기준을 포함한 계산 방식 설명" }`,
       config: {
+        tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
       }
     });
@@ -97,7 +104,11 @@ export const getAIConsultation = async (studentScore: number, schoolName: string
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `화산중학교 내신 점수 ${studentScore}/300점인 학생이 ${schoolName} 고등학교 진학을 희망하고 있습니다. 해당 학교의 특징과 이 점수로 합격 가능성 및 조언을 한국어로 친절하게 답변해주세요.`,
+      contents: `화산중학교 내신 점수 ${studentScore}/300점인 학생이 ${schoolName} 고등학교 진학을 희망하고 있습니다. 
+      구글 검색을 통해 ${schoolName}의 최근 커트라인과 모집 요강을 확인하고, 이 학생의 합격 가능성과 구체적인 준비 전략을 한국어로 친절하게 답변해주세요.`,
+      config: {
+        tools: [{ googleSearch: {} }],
+      }
     });
     return response.text;
   } catch (error) {

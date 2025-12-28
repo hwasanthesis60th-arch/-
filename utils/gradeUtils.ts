@@ -2,6 +2,7 @@
 import { Achievement, SemesterData, SubjectGrade } from '../types';
 
 export const calculatePerfScale = (val: number): number => {
+  // 화산중 수행평가 8점 만점 -> 100점 환산표 (지침: 8=100, 7=95, 6=90, 5=85, 4=80, 3=75, 2=70, 1=65, 0=60)
   const map: Record<number, number> = {
     8: 100, 7: 95, 6: 90, 5: 85, 4: 80, 3: 75, 2: 70, 1: 65, 0: 60
   };
@@ -9,15 +10,16 @@ export const calculatePerfScale = (val: number): number => {
 };
 
 export const getAchievement = (raw: number, isArtsPe: boolean): Achievement => {
+  const score = Math.min(100, raw);
   if (isArtsPe) {
-    if (raw >= 79.5) return 'A';
-    if (raw >= 59.5) return 'B';
+    if (score >= 79.5) return 'A';
+    if (score >= 59.5) return 'B';
     return 'C';
   } else {
-    if (raw >= 89.5) return 'A';
-    if (raw >= 79.5) return 'B';
-    if (raw >= 69.5) return 'C';
-    if (raw >= 59.5) return 'D';
+    if (score >= 89.5) return 'A';
+    if (score >= 79.5) return 'B';
+    if (score >= 69.5) return 'C';
+    if (score >= 59.5) return 'D';
     return 'E';
   }
 };
@@ -61,7 +63,7 @@ export const calculateTotalScore = (
         artsPeCount++;
       } else {
         const p = getAchievementPoints(sub.achievement);
-        const r = typeof sub.rawScore === 'number' ? sub.rawScore : 0;
+        const r = typeof sub.rawScore === 'number' ? Math.min(100, sub.rawScore) : 0;
         if (isGrade3) {
           g3_PointsSum += p;
           g3_RawSum += r;
@@ -75,13 +77,15 @@ export const calculateTotalScore = (
     });
   });
 
+  // 화산중 교과 점수 공식: (평균 성취도 점수 + 평균 원점수 * 0.01) * 가중치(15)
+  // 1, 2학년 합산 90점 만점 / 3학년 90점 만점 / 음미체 60점 만점 = 교과 240점
   const academicG12 = g1_2_Count > 0 ? ( (g1_2_PointsSum / g1_2_Count) + (g1_2_RawSum / g1_2_Count) * 0.01 ) * 15 : 0;
   const academicG3 = g3_Count > 0 ? ( (g3_PointsSum / g3_Count) + (g3_RawSum / g3_Count) * 0.01 ) * 15 : 0;
   const academicArtsPe = artsPeCount > 0 ? (artsPePointsSum / artsPeCount) * 12 : 0;
 
   const academicTotal = academicG12 + academicG3 + academicArtsPe;
 
-  // Non-Academic Calculation
+  // 비교과 산출
   const attendanceScore = calculateAttendance(nonAcademic.attendance);
   const volunteerScore = calculateVolunteer(nonAcademic.volunteer);
   const behaviorScore = calculateBehavior(nonAcademic.behavior);
@@ -92,7 +96,7 @@ export const calculateTotalScore = (
 const calculateAttendance = (att: any) => {
   let total = 0;
   for (let i = 0; i < 3; i++) {
-    const unexcusedAbs = att.absences[i] + Math.floor((att.tardies[i] + att.earlyLeaves[i] + att.results[i]) / 3);
+    const unexcusedAbs = (att.absences?.[i] || 0) + Math.floor(((att.tardies?.[i] || 0) + (att.earlyLeaves?.[i] || 0) + (att.results?.[i] || 0)) / 3);
     if (unexcusedAbs === 0) total += 10;
     else if (unexcusedAbs <= 3) total += 9;
     else if (unexcusedAbs <= 7) total += 8;
@@ -105,7 +109,7 @@ const calculateAttendance = (att: any) => {
 };
 
 const calculateVolunteer = (vol: any) => {
-  const h = vol.hours;
+  const h = vol.hours || 0;
   if (vol.specialCase === 'disabled') return 15;
   if (vol.specialCase === '20h') {
     if (h >= 20) return 15;
@@ -123,7 +127,6 @@ const calculateVolunteer = (vol: any) => {
     if (h >= 3) return 3;
     return 2;
   } else {
-    // 30h criteria
     if (h >= 30) return 15;
     if (h >= 28) return 14;
     if (h >= 26) return 13;
@@ -142,8 +145,8 @@ const calculateVolunteer = (vol: any) => {
 };
 
 const calculateBehavior = (beh: any) => {
-  const s1 = beh.grade1.base + Math.min(2, beh.grade1.extra);
-  const s2 = beh.grade2.base + Math.min(2, beh.grade2.extra);
-  const s3 = beh.grade3.base + Math.min(2, beh.grade3.extra);
+  const s1 = (beh.grade1?.base || 3) + Math.min(2, beh.grade1?.extra || 0);
+  const s2 = (beh.grade2?.base || 3) + Math.min(2, beh.grade2?.extra || 0);
+  const s3 = (beh.grade3?.base || 3) + Math.min(2, beh.grade3?.extra || 0);
   return s1 + s2 + s3;
 };
